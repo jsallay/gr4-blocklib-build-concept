@@ -1,46 +1,9 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.28)
 project(MyProject LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 
 option(ENABLE_SPLIT "Enable splitting of generated files (pass --split to the parser)" ON)
-
-
-# --------------------------------------------------------------------------
-# Manually configure and build the parser tool in a separate directory
-# --------------------------------------------------------------------------
-set(TOOLS_BUILD_DIR "${CMAKE_BINARY_DIR}/tools_build")
-if(NOT EXISTS "${TOOLS_BUILD_DIR}/CMakeCache.txt")
-    message(STATUS "Configuring parser tool in ${TOOLS_BUILD_DIR}...")
-    execute_process(
-            COMMAND ${CMAKE_COMMAND} -S ${CMAKE_SOURCE_DIR}/tools -B ${TOOLS_BUILD_DIR} -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-            RESULT_VARIABLE config_result
-            OUTPUT_VARIABLE config_output
-            ERROR_VARIABLE config_error
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_STRIP_TRAILING_WHITESPACE
-    )
-    if(NOT config_result EQUAL 0)
-        message(FATAL_ERROR "Failed to configure parser tool: ${config_error}")
-    endif()
-endif()
-
-message(STATUS "Building parser tool in ${TOOLS_BUILD_DIR}...")
-execute_process(
-        COMMAND ${CMAKE_COMMAND} --build ${TOOLS_BUILD_DIR} --target parse_registrations
-        WORKING_DIRECTORY ${TOOLS_BUILD_DIR}
-        RESULT_VARIABLE build_result
-        OUTPUT_VARIABLE build_output
-        ERROR_VARIABLE build_error
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_STRIP_TRAILING_WHITESPACE
-)
-if(NOT build_result EQUAL 0)
-    message(FATAL_ERROR "Failed to build parse_registrations tool: ${build_error}")
-else ()
-    set(PARSER_EXECUTABLE "${TOOLS_BUILD_DIR}/parse_registrations")
-    message(STATUS "Parser tool built: ${PARSER_EXECUTABLE}")
-endif()
 
 # --------------------------------------------------------------------------
 # Configure the rest of the project
@@ -50,11 +13,59 @@ endif()
 add_subdirectory(include)
 add_subdirectory(src)
 
+function(create_block_targets LIB_NAME)
+    set(options "")
+    set(oneValueArgs HEADER_FILE BLOCK_NAME)
+    set(multiValueArgs TYPES_LIST)
+    cmake_parse_arguments(CBT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    # directory where parse_registrations will output .cpp files.
+    set(GEN_DIR "${CMAKE_BINARY_DIR}/generated_plugins/${LIB_NAME}")
+    file(MAKE_DIRECTORY "${GEN_DIR}")
+
+    # Generate a random 20 digit number
+    string(RANDOM LENGTH 20 ALPHABET "0123456789" RANDOM_INTEGER)
+
+    set(GEN_CPP_LIST "")
+    message(STATUS "${CBT_HEADER_FILE} ${CBT_BLOCK_NAME} ${CBT_TYPES_LIST}")
+    get_filename_component(ABS_HDR "${CBT_HEADER_FILE}" ABSOLUTE)
+    get_filename_component(BASENAME "${CBT_HEADER_FILE}" NAME_WE)
+    list(LENGTH CBT_TYPES_LIST TYPES_LENGTH)
+    message(STATUS "What: ${TYPES_LENGTH}")
+    if (${TYPES_LENGTH} EQUAL 0)
+        # NON TEMPLATE BLOCK
+        message(STATUS "RUT RO: ${BASENAME} ${CBT_TYPES_LIST}")
+        configure_file(${CMAKE_SOURCE_DIR}/cmake/block_nt.cpp.in ${GEN_DIR}/${BASENAME}.cpp )
+        list(APPEND GEN_CPP_LIST ${GEN_DIR}/${BASENAME}.cpp)
+    else()
+        foreach(BLOCK_TYPES ${CBT_TYPES_LIST})
+            message(STATUS "Yo ${BLOCK_TYPES}")
+
+            configure_file(${CMAKE_SOURCE_DIR}/cmake/block.cpp.in ${GEN_DIR}/${BASENAME}_${BLOCK_TYPES}.cpp )
+            list(APPEND GEN_CPP_LIST ${GEN_DIR}/${BASENAME}_${BLOCK_TYPES}.cpp)
+        endforeach()
+    endif()
+    message(STATUS ${GEN_CPP_LIST})
+
+    # APPEND the generated files to our source list
+    target_sources(${LIB_NAME} PRIVATE ${GEN_CPP_LIST})
+
+    # These are repeated, could be moved out, but I don't think it harms anything here.
+    target_include_directories(${LIB_NAME} PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+            $<INSTALL_INTERFACE:include>
+            "${CMAKE_SOURCE_DIR}/include"
+    )
+    set_target_properties(${LIB_NAME} PROPERTIES CXX_STANDARD 23)
+    install(TARGETS ${LIB_NAME} LIBRARY DESTINATION lib)
+endfunction()
+
+
 # define global block building command
 function(create_block_library LIB_NAME)
     set(options "")
     set(oneValueArgs "")
-    set(multiValueArgs HEADERS SOURCES)
+    set(multiValueArgs HEADERS SOURCES TYPES_LIST)
     cmake_parse_arguments(CBL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     # directory where parse_registrations will output .cpp files.
