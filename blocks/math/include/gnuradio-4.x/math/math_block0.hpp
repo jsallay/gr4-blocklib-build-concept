@@ -7,7 +7,7 @@
 namespace gr::math {
 
 // register MathBlock0<T> for T in [float, double]
-GR_REGISTER_BLOCK(gr::math::MathBlock0, [T], [ float, double ])
+//GR_REGISTER_BLOCK(gr::math::MathBlock0, [T], [ float, double ])
 
 template<typename T>
 struct MathBlock0 : public gr::IBlock {

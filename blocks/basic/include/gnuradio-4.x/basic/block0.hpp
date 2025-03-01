@@ -7,7 +7,7 @@
 namespace gr::basic {
 
 // register non-templated Block0
-GR_REGISTER_BLOCK(gr::basic::Block0)
+//GR_REGISTER_BLOCK(gr::basic::Block0)
 //GR_REGISTER_BLOCK(gr::basic::BlockError) // uncomment me to see a compiler error output -> should you link you back here
 
 struct Block0 : public gr::IBlock {

@@ -7,7 +7,7 @@
 namespace gr::basic {
 
 // register Block2<T, U> for T in [int, float], U in [double]
-GR_REGISTER_BLOCK(gr::basic::Block2, ([T], [U]), [ int, float ], [double])
+//GR_REGISTER_BLOCK(gr::basic::Block2, ([T], [U]), [ int, float ], [double])
 
 template<typename T, typename U>
 struct Block2 : public gr::IBlock {
